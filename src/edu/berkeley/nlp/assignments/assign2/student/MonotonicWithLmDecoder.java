@@ -14,35 +14,32 @@ import java.util.List;
  */
 public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
     public class StateWithLm extends DecoderState {
-        int decodedLength = 0;
-        Double priority;
-
         public StateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, NgramLanguageModel languageModel, DistortionModel distortionModel) {
-            this.score = score;
-            this.decodedLength = score.getForeignLength() + backPointer.getDecodedLength();
-            this.backPointer = backPointer;
+            super(backPointer, score, languageModel, distortionModel);
+            buildPriorNgram();
         }
 
-        public double getPriority(NgramLanguageModel languageModel, DistortionModel distortionModel) {
-            if (priority == null) {
-                this.priority = score.score + backPointer.getPriority(languageModel, distortionModel);
-                List<String> priorNgram = new ArrayList<String>(backPointer.getPriorNgram(languageModel));
-                priorNgram.addAll(score.getEnglish());
-                for (int i = 0; i < priorNgram.size() - languageModel.getOrder() + 1; i++) {
-                    List<String> ngram = priorNgram.subList(i, i + languageModel.getOrder());
-                    int[] ngramArray = toArray(ngram);
-                    double lmScore = languageModel.getNgramLogProbability(ngramArray, 0, ngramArray.length);
-                    priority += lmScore;
-                }
+        protected double scoreWithLanguageModel() {
+            double sum = 0.0;
+
+            int[] mungedPartialSentence;
+
+            int[] priorNgram = backPointer.getPriorNgram();
+            int[] partialSentence = toArray(score.getEnglish());
+            mungedPartialSentence = new int[partialSentence.length + 2];
+            System.arraycopy(priorNgram, 0, mungedPartialSentence, 0, 2);
+            System.arraycopy(partialSentence, 0, mungedPartialSentence, 2, partialSentence.length);
+
+            for (int i = 0; i < mungedPartialSentence.length - 2; i++) {
+                double lmScore = languageModel.getNgramLogProbability(mungedPartialSentence, i, i + 2);
+                sum += lmScore;
             }
-            return priority;
+            return sum;
         }
 
-        public int getDecodedLength() {
-            return decodedLength;
+        protected double scoreWithDistortionModel() {
+            return 0.0;
         }
-
-
     }
 
     public MonotonicWithLmDecoder(PhraseTable pt, NgramLanguageModel lm, DistortionModel dm) {
@@ -50,6 +47,10 @@ public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
     }
 
     protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score) {
-        return new StateWithLm(state, score, lm, dm);
+        if (state == null && score == null) {
+            return new StateNoLm(null, null, lm, dm);
+        } else {
+            return new StateWithLm(state, score, lm, dm);
+        }
     }
 }

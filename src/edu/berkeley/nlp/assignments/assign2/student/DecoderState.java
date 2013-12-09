@@ -9,6 +9,7 @@ import edu.berkeley.nlp.util.StringIndexer;
 import java.util.ArrayList;
 import java.util.List;
 
+
 /**
  * @author Keith Stone
  */
@@ -27,48 +28,102 @@ public abstract class DecoderState {
     }
 
     protected static int[] toArray(final List<String> ngram) {
-        return toArray(ngram, EnglishWordIndexer.getIndexer());
+        return toArray(ngram, indexer);
     }
+
+    static StringIndexer indexer = EnglishWordIndexer.getIndexer();
+    static int START_TOKEN_INDEX = DecoderState.indexer.indexOf(NgramLanguageModel.START);
 
     DecoderState backPointer;
     ScoredPhrasePairForSentence score;
-    List<String> priorNgram;
+    int[] priorNgram = { START_TOKEN_INDEX, START_TOKEN_INDEX };
+    Double priority;
+    int decodedLength = 0;
+    int translatedLength = 0;
+    Integer hashcode;
+    NgramLanguageModel languageModel;
+    DistortionModel distortionModel;
 
-    public DecoderState() {
+    public DecoderState(DecoderState backPointer, ScoredPhrasePairForSentence score, NgramLanguageModel languageModel, DistortionModel distortionModel) {
+        this.languageModel = languageModel;
+        this.distortionModel = distortionModel;
 
+        this.score = score;
+        this.backPointer = backPointer;
+
+        int foreignLength = score == null ? 0 : score.getForeignLength();
+        int decodedLength = backPointer == null ? 0 : backPointer.getDecodedLength();
+        this.decodedLength = foreignLength + decodedLength;
+
+        int englishLength = score == null ? 0 : score.getEnglish().size();
+        int translatedLength = backPointer == null ? 0 : backPointer.getTranslatedLength();
+        this.translatedLength = englishLength + translatedLength;
     }
 
-    public abstract double getPriority(NgramLanguageModel languageModel, DistortionModel distortionModel);
-    public abstract int    getDecodedLength();
+    public double getPriority() {
+        if (priority == null) {
+            this.priority  = (score       == null ? 0.0 : score.score);
+            this.priority += (backPointer == null ? 0.0 : backPointer.getPriority());
+            this.priority += scoreWithLanguageModel();
+            this.priority += scoreWithDistortionModel();
+        }
+        return priority;
+    }
 
-    public List<String> getPriorNgram(NgramLanguageModel languageModel) {
-        if (priorNgram != null)
-            return priorNgram;
+    public int getDecodedLength() {
+        return decodedLength;
+    }
 
-        int totalWords = languageModel.getOrder() - 1;
-        if (score == null) {
-            priorNgram = new ArrayList<String>();
-            for (int i = 0; i < totalWords; i++) {
-                priorNgram.add(NgramLanguageModel.START);
+    public int getTranslatedLength() {
+        return translatedLength;
+    }
+
+    protected void buildPriorNgram() {
+        if (score != null) {
+            int[] english = toArray(score.getEnglish());
+            int translationSize = english.length;
+
+            if (translationSize == 0) {
+                int[] previousNgram = backPointer.getPriorNgram();
+                priorNgram[0] = previousNgram[0];
+                priorNgram[1] = previousNgram[1];
+            } else if (translationSize == 1) {
+                priorNgram[0] = backPointer.getPriorNgram()[1];
+                priorNgram[1] = english[0];
+            } else {
+                priorNgram[0] = english[translationSize - 2];
+                priorNgram[1] = english[translationSize - 1];
             }
-            return priorNgram;
         }
+    }
 
-        List<String> english = score.getEnglish();
-        if (english.size() < totalWords) {
-            List<String> partialList;
-            List<String> previous = backPointer.getPriorNgram(languageModel);
-            List<String> missingWords = previous.subList(previous.size() - (totalWords - english.size()), previous.size());
-            partialList = new ArrayList<String>(missingWords);
-            partialList.addAll(english);
-            priorNgram = partialList;
-        } else {
-            int from = english.size() - totalWords;
-            int to = english.size();
-            priorNgram = english.subList(from, to);
-
-        }
+    public int[] getPriorNgram() {
         return priorNgram;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DecoderState that = (DecoderState) o;
+
+        if (decodedLength    != that.decodedLength)    return false;
+        if (translatedLength != that.translatedLength) return false;
+        if (priorNgram[0]    != that.priorNgram[0])    return false;
+        if (priorNgram[1]    != that.priorNgram[1])    return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        if (hashcode != null) return hashcode;
+
+        int result = priorNgram.hashCode();
+        result = 31 * result + 13 * translatedLength + decodedLength;
+        hashcode = result;
+        return hashcode;
     }
 
     public List<ScoredPhrasePairForSentence> decode() {
@@ -80,6 +135,10 @@ public abstract class DecoderState {
             return previousScores;
         }
     }
+
+    abstract protected double scoreWithLanguageModel();
+
+    abstract protected double scoreWithDistortionModel();
 
     public DecoderState getBackPointer() {
         return backPointer;
