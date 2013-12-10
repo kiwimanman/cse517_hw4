@@ -93,20 +93,20 @@ public class MonotonicNoLmDecoder implements Decoder {
     }
 
     private void cullBeams(Map<Integer, PriorityQueue<DecoderState>> beamMap) {
+        Set<DecoderState> stateSet = new HashSet<DecoderState>(2000);
         for (Integer i : beamMap.keySet()) {
             PriorityQueue<DecoderState> oldBeam = beamMap.get(i);
-
-            if (oldBeam.size() > maxBeamSize) {
-                PriorityQueue<DecoderState> newBeam = new FastPriorityQueue<DecoderState>(maxBeamSize);
-                while (!oldBeam.isEmpty() && newBeam.size() < maxBeamSize) {
-                    double priority = oldBeam.getPriority();
-                    DecoderState ds = oldBeam.removeFirst();
-                    if (!newBeam.containsKey(ds)) {
-                        newBeam.setPriority(ds, priority);
-                    }
+            PriorityQueue<DecoderState> newBeam = new FastPriorityQueue<DecoderState>(maxBeamSize);
+            stateSet.clear();
+            while (!oldBeam.isEmpty() && stateSet.size() < maxBeamSize) {
+                double priority = oldBeam.getPriority();
+                DecoderState ds = oldBeam.removeFirst();
+                if (!stateSet.contains(ds)) {
+                    stateSet.add(ds);
+                    newBeam.setPriority(ds, priority);
                 }
-                beamMap.put(i, newBeam);
             }
+            beamMap.put(i, newBeam);
         }
     }
 }

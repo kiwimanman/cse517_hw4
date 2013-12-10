@@ -31,7 +31,7 @@ public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
             System.arraycopy(partialSentence, 0, mungedPartialSentence, 2, partialSentence.length);
 
             for (int i = 0; i < mungedPartialSentence.length - 2; i++) {
-                double lmScore = languageModel.getNgramLogProbability(mungedPartialSentence, i, i + 2);
+                double lmScore = languageModel.getNgramLogProbability(mungedPartialSentence, i, i + 3);
                 sum += lmScore;
             }
             return sum;
