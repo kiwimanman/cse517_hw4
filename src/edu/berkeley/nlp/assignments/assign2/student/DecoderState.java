@@ -38,13 +38,15 @@ public abstract class DecoderState {
     ScoredPhrasePairForSentence score;
     int[] priorNgram = { START_TOKEN_INDEX, START_TOKEN_INDEX };
     Double priority;
+    boolean[] decodedMask;
     int decodedLength = 0;
     int translatedLength = 0;
     Integer hashcode;
     NgramLanguageModel languageModel;
     DistortionModel distortionModel;
+    Integer unbrokenTranslationLength;
 
-    public DecoderState(DecoderState backPointer, ScoredPhrasePairForSentence score, NgramLanguageModel languageModel, DistortionModel distortionModel) {
+    public DecoderState(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel) {
         this.languageModel = languageModel;
         this.distortionModel = distortionModel;
 
@@ -52,12 +54,20 @@ public abstract class DecoderState {
         this.backPointer = backPointer;
 
         int foreignLength = score == null ? 0 : score.getForeignLength();
-        int decodedLength = backPointer == null ? 0 : backPointer.getDecodedLength();
-        this.decodedLength = foreignLength + decodedLength;
-
         int englishLength = score == null ? 0 : score.getEnglish().size();
-        int translatedLength = backPointer == null ? 0 : backPointer.getTranslatedLength();
-        this.translatedLength = englishLength + translatedLength;
+
+        if (backPointer != null) {
+            int decodedLength  = backPointer.getDecodedLength();
+            this.decodedLength = foreignLength + decodedLength;
+
+            int translatedLength  = backPointer.getTranslatedLength();
+            this.translatedLength = englishLength + translatedLength;
+
+            decodedMask = java.util.Arrays.copyOfRange(backPointer.decodedMask, 0, backPointer.decodedMask.length);
+            for (int k = i; k < j; k++) {
+                decodedMask[k] = true;
+            }
+        }
     }
 
     public double getPriority() {
@@ -76,6 +86,23 @@ public abstract class DecoderState {
 
     public int getTranslatedLength() {
         return translatedLength;
+    }
+
+    public boolean isLegalPhrase(int start, int end) {
+        if (end <= start) return false;
+        if (end > decodedMask.length)  return false;
+        for (int i = start; i < end; i++) {
+            if (decodedMask[i]) return false;
+        }
+        return true;
+    }
+
+    public int getUnbrokenTranslationLength() {
+        if (unbrokenTranslationLength != null) return unbrokenTranslationLength;
+        for (unbrokenTranslationLength = 0; unbrokenTranslationLength < decodedMask.length; unbrokenTranslationLength++) {
+            if (!decodedMask[unbrokenTranslationLength]) return unbrokenTranslationLength;
+        }
+        return unbrokenTranslationLength;
     }
 
     protected void buildPriorNgram() {
@@ -112,6 +139,9 @@ public abstract class DecoderState {
         if (translatedLength != that.translatedLength) return false;
         if (priorNgram[0]    != that.priorNgram[0])    return false;
         if (priorNgram[1]    != that.priorNgram[1])    return false;
+        if (getUnbrokenTranslationLength() != that.getUnbrokenTranslationLength()) return false;
+        for (int i = 0; i < decodedMask.length; i++)
+            if (decodedMask[i] != that.decodedMask[i]) return false;
 
         return true;
     }
@@ -121,7 +151,8 @@ public abstract class DecoderState {
         if (hashcode != null) return hashcode;
 
         int result = priorNgram.hashCode();
-        result = 31 * result + 13 * translatedLength + decodedLength;
+        int maskResult = decodedMask.hashCode();
+        result = 31 * result + 17 * maskResult + 13 * translatedLength + 7 * getUnbrokenTranslationLength() + decodedLength;
         hashcode = result;
         return hashcode;
     }

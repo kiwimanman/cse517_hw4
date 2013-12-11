@@ -14,8 +14,8 @@ import java.util.List;
  */
 public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
     public class StateWithLm extends DecoderState {
-        public StateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, NgramLanguageModel languageModel, DistortionModel distortionModel) {
-            super(backPointer, score, languageModel, distortionModel);
+        public StateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel) {
+            super(backPointer, score, i, j, languageModel, distortionModel);
             buildPriorNgram();
         }
 
@@ -46,11 +46,7 @@ public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
         super(pt, lm, dm);
     }
 
-    protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score) {
-        if (state == null && score == null) {
-            return new StateNoLm(null, null, lm, dm);
-        } else {
-            return new StateWithLm(state, score, lm, dm);
-        }
+    protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score, int i, int j) {
+        return new StateWithLm(state, score, i, j, lm, dm);
     }
 }

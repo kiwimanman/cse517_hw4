@@ -6,13 +6,8 @@ import edu.berkeley.nlp.mt.decoder.DecoderFactory;
 import edu.berkeley.nlp.mt.decoder.DistortionModel;
 import edu.berkeley.nlp.mt.phrasetable.PhraseTable;
 
-public class DistortingWithLmDecoderFactory implements DecoderFactory
-{
-
+public class DistortingWithLmDecoderFactory implements DecoderFactory {
 	public Decoder newDecoder(PhraseTable tm, NgramLanguageModel lm, DistortionModel dm) {
-
-		 return null;
-
+		 return new DistortingWithLmLmDecoder(tm, lm, dm);
 	}
-
 }

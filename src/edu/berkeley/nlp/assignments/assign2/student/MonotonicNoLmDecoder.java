@@ -17,8 +17,13 @@ import java.util.*;
 
 public class MonotonicNoLmDecoder implements Decoder {
     public class StateNoLm extends DecoderState {
-        public StateNoLm(DecoderState backPointer, ScoredPhrasePairForSentence score, NgramLanguageModel languageModel, DistortionModel distortionModel) {
-            super(backPointer, score, languageModel, distortionModel);
+        public StateNoLm(List<String> sentence) {
+            super(null, null, 0, 0, null, null);
+            decodedMask = new boolean[sentence.size()];
+        }
+
+        public StateNoLm(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel) {
+            super(backPointer, score, i, j, languageModel, distortionModel);
         }
 
         protected double scoreWithLanguageModel() {
@@ -45,7 +50,7 @@ public class MonotonicNoLmDecoder implements Decoder {
     public List<ScoredPhrasePairForSentence> decode(List<String> sentence) {
         Map<Integer, PriorityQueue<DecoderState>> beamMap = buildBeamMap(sentence.size());
         PhraseTableForSentence tmState = phraseTable.initialize(sentence);
-        beamMap.get(0).setPriority(buildState(null, null), 0.0);
+        beamMap.get(0).setPriority(buildStartState(sentence), 0.0);
 
         for (int i = 0; i < sentence.size(); i++) {
             PriorityQueue<DecoderState> beam = beamMap.get(i);
@@ -64,14 +69,15 @@ public class MonotonicNoLmDecoder implements Decoder {
         return beamMap;
     }
 
-    private void extrapolateState(DecoderState state, Map<Integer, PriorityQueue<DecoderState>> beamMap, PhraseTableForSentence tmState) {
+    protected void extrapolateState(DecoderState state, Map<Integer, PriorityQueue<DecoderState>> beamMap, PhraseTableForSentence tmState) {
         int i = state.getDecodedLength();
         int phraseSize = phraseTable.getMaxPhraseSize();
-        for (int j = 1; j <= phraseSize; j++) {
-            List<ScoredPhrasePairForSentence> scores = tmState.getScoreSortedTranslationsForSpan(i, i + j);
+        for (int j = 0; j < phraseSize; j++) {
+            int end = i + j + 1;
+            List<ScoredPhrasePairForSentence> scores = tmState.getScoreSortedTranslationsForSpan(i, end);
             if (scores != null) {
                 for (ScoredPhrasePairForSentence score : scores) {
-                    DecoderState newState = buildState(state, score);
+                    DecoderState newState = buildState(state, score, i, end);
                     int beamIndex = newState.getDecodedLength();
                     PriorityQueue<DecoderState> targetBeam =  beamMap.get(beamIndex);
                     double priority = newState.getPriority();
@@ -81,8 +87,12 @@ public class MonotonicNoLmDecoder implements Decoder {
         }
     }
 
-    protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score) {
-        return new StateNoLm(state, score, lm, dm);
+    protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score, int i, int j) {
+        return new StateNoLm(state, score, i, j, lm, dm);
+    }
+
+    protected DecoderState buildStartState(List<String> sentence) {
+        return new StateNoLm(sentence);
     }
 
     private void extrapolateBeam(PriorityQueue<DecoderState> beam, Map<Integer, PriorityQueue<DecoderState>> beamMap, PhraseTableForSentence tmState) {
