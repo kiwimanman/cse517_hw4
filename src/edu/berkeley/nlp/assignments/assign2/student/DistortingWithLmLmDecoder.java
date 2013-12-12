@@ -15,13 +15,13 @@ import java.util.Map;
  */
 public class DistortingWithLmLmDecoder extends MonotonicWithLmDecoder {
     public class DistortingStateWithLm extends StateWithLm {
-        public DistortingStateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel) {
-            super(backPointer, score, i, j, languageModel, distortionModel);
+        public DistortingStateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel, PhraseTable phraseTable) {
+            super(backPointer, score, i, j, languageModel, distortionModel, phraseTable);
             buildPriorNgram();
         }
 
         protected double scoreWithDistortionModel() {
-            int end = backPointer.getUnbrokenTranslationLength();
+            int end = backPointer.getForeignSideEndIndex();
             int start = score.getStart();
             double priority = distortionModel.getDistortionScore(end, start);
             return priority;
@@ -36,14 +36,14 @@ public class DistortingWithLmLmDecoder extends MonotonicWithLmDecoder {
         int i = state.getUnbrokenTranslationLength();
         int maxDistortion = i + dm.getDistortionLimit();
         int phraseSize = phraseTable.getMaxPhraseSize();
+        int maxPhraseEnd = Math.min(maxDistortion, phraseSize + i) + 1;
         for (; i < maxDistortion; i++) {
-            for (int j = 0; j < phraseSize; j++) {
-                int end = i + j + 1;
-                if (state.isLegalPhrase(i, end)) {
-                    List<ScoredPhrasePairForSentence> scores = tmState.getScoreSortedTranslationsForSpan(i, end);
+            for (int j = i + 1; j < maxPhraseEnd; j++) {
+                if (state.isLegalPhrase(i, j)) {
+                    List<ScoredPhrasePairForSentence> scores = tmState.getScoreSortedTranslationsForSpan(i, j);
                     if (scores != null) {
                         for (ScoredPhrasePairForSentence score : scores) {
-                            DecoderState newState = buildState(state, score, i, end);
+                            DecoderState newState = buildState(state, score, i, j);
                             int beamIndex = newState.getDecodedLength();
                             PriorityQueue<DecoderState> targetBeam =  beamMap.get(beamIndex);
                             double priority = newState.getPriority();
@@ -56,6 +56,6 @@ public class DistortingWithLmLmDecoder extends MonotonicWithLmDecoder {
     }
 
     protected DecoderState buildState(DecoderState state, ScoredPhrasePairForSentence score, int i, int j) {
-        return new DistortingStateWithLm(state, score, i, j, lm, dm);
+        return new DistortingStateWithLm(state, score, i, j, lm, dm, phraseTable);
     }
 }

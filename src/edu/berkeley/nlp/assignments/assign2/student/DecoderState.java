@@ -3,17 +3,20 @@ package edu.berkeley.nlp.assignments.assign2.student;
 import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
 import edu.berkeley.nlp.langmodel.NgramLanguageModel;
 import edu.berkeley.nlp.mt.decoder.DistortionModel;
+import edu.berkeley.nlp.mt.phrasetable.PhraseTable;
 import edu.berkeley.nlp.mt.phrasetable.ScoredPhrasePairForSentence;
+import edu.berkeley.nlp.util.Pair;
 import edu.berkeley.nlp.util.StringIndexer;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 
 /**
  * @author Keith Stone
  */
-public abstract class DecoderState {
+public abstract class DecoderState implements Iterable<Pair<Integer, Integer>> {
     /**
      * @param ngram
      * @param lexIndexer
@@ -38,6 +41,12 @@ public abstract class DecoderState {
     ScoredPhrasePairForSentence score;
     int[] priorNgram = { START_TOKEN_INDEX, START_TOKEN_INDEX };
     Double priority;
+
+    Double previousScore;
+    Double translationScore;
+    Double languageModelScore;
+    Double distortionScore;
+
     boolean[] decodedMask;
     int decodedLength = 0;
     int translatedLength = 0;
@@ -45,10 +54,12 @@ public abstract class DecoderState {
     NgramLanguageModel languageModel;
     DistortionModel distortionModel;
     Integer unbrokenTranslationLength;
+    PhraseTable phraseTable;
 
-    public DecoderState(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel) {
+    public DecoderState(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel, PhraseTable phraseTable) {
         this.languageModel = languageModel;
         this.distortionModel = distortionModel;
+        this.phraseTable = phraseTable;
 
         this.score = score;
         this.backPointer = backPointer;
@@ -72,10 +83,11 @@ public abstract class DecoderState {
 
     public double getPriority() {
         if (priority == null) {
-            this.priority  = (score       == null ? 0.0 : score.score);
-            this.priority += (backPointer == null ? 0.0 : backPointer.getPriority());
-            this.priority += scoreWithLanguageModel();
-            this.priority += scoreWithDistortionModel();
+            this.translationScore   = (score       == null ? 0.0 : score.score);
+            this.previousScore      = (backPointer == null ? 0.0 : backPointer.getPriority());
+            this.languageModelScore = scoreWithLanguageModel();
+            this.distortionScore    = scoreWithDistortionModel();
+            this.priority = previousScore + translationScore + languageModelScore + distortionScore;
         }
         return priority;
     }
@@ -95,6 +107,10 @@ public abstract class DecoderState {
             if (decodedMask[i]) return false;
         }
         return true;
+    }
+
+    public int getForeignSideEndIndex() {
+        return score == null ? 0 : score.getEnd();
     }
 
     public int getUnbrokenTranslationLength() {
@@ -124,6 +140,10 @@ public abstract class DecoderState {
         }
     }
 
+    public Iterator<Pair<Integer, Integer>> iterator() {
+        return new MonotonicIterator(decodedLength, phraseTable.getMaxPhraseSize());
+    }
+
     public int[] getPriorNgram() {
         return priorNgram;
     }
@@ -139,7 +159,6 @@ public abstract class DecoderState {
         if (translatedLength != that.translatedLength) return false;
         if (priorNgram[0]    != that.priorNgram[0])    return false;
         if (priorNgram[1]    != that.priorNgram[1])    return false;
-        if (getUnbrokenTranslationLength() != that.getUnbrokenTranslationLength()) return false;
         for (int i = 0; i < decodedMask.length; i++)
             if (decodedMask[i] != that.decodedMask[i]) return false;
 
@@ -152,7 +171,7 @@ public abstract class DecoderState {
 
         int result = priorNgram.hashCode();
         int maskResult = decodedMask.hashCode();
-        result = 31 * result + 17 * maskResult + 13 * translatedLength + 7 * getUnbrokenTranslationLength() + decodedLength;
+        result = 31 * result + 17 * maskResult + 13 * translatedLength + decodedLength;
         hashcode = result;
         return hashcode;
     }
