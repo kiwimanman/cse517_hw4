@@ -141,7 +141,7 @@ public abstract class DecoderState implements Iterable<Pair<Integer, Integer>> {
     }
 
     public Iterator<Pair<Integer, Integer>> iterator() {
-        return new MonotonicIterator(decodedLength, phraseTable.getMaxPhraseSize());
+        return new MonotonicIterator(this);
     }
 
     public int[] getPriorNgram() {
@@ -157,6 +157,7 @@ public abstract class DecoderState implements Iterable<Pair<Integer, Integer>> {
 
         if (decodedLength    != that.decodedLength)    return false;
         if (translatedLength != that.translatedLength) return false;
+        if (getForeignSideEndIndex() != that.getForeignSideEndIndex()) return false;
         if (priorNgram[0]    != that.priorNgram[0])    return false;
         if (priorNgram[1]    != that.priorNgram[1])    return false;
         for (int i = 0; i < decodedMask.length; i++)
@@ -196,5 +197,13 @@ public abstract class DecoderState implements Iterable<Pair<Integer, Integer>> {
 
     public ScoredPhrasePairForSentence getScore() {
         return score;
+    }
+
+    public PhraseTable getPhraseTable() {
+        return phraseTable;
+    }
+
+    public DistortionModel getDistortionModel() {
+        return distortionModel;
     }
 }

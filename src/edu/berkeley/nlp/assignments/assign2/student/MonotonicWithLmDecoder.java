@@ -14,12 +14,19 @@ import java.util.List;
  */
 public class MonotonicWithLmDecoder extends MonotonicNoLmDecoder {
     public class StateWithLm extends DecoderState {
+        public StateWithLm(List<String> sentence, PhraseTable phraseTable) {
+            super(null, null, 0, 0, null, null, phraseTable);
+            decodedMask = new boolean[sentence.size()];
+        }
+
         public StateWithLm(DecoderState backPointer, ScoredPhrasePairForSentence score, int i, int j, NgramLanguageModel languageModel, DistortionModel distortionModel, PhraseTable pt) {
             super(backPointer, score, i, j, languageModel, distortionModel, pt);
             buildPriorNgram();
         }
 
         protected double scoreWithLanguageModel() {
+            if (backPointer == null) return 0.0;
+
             double sum = 0.0;
 
             int[] mungedPartialSentence;

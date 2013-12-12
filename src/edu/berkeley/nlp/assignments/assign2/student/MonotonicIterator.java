@@ -14,10 +14,10 @@ public class MonotonicIterator implements Iterator<Pair<Integer, Integer>> {
     int length;
     Pair<Integer, Integer> pair;
 
-    public MonotonicIterator(int i, int length) {
-        this.i = i;
+    public MonotonicIterator(DecoderState state) {
+        this.i = state.getDecodedLength();
         this.j = 0;
-        this.length = length;
+        this.length = state.getPhraseTable().getMaxPhraseSize();
         pair = new Pair<Integer, Integer>(i, i);
     }
 

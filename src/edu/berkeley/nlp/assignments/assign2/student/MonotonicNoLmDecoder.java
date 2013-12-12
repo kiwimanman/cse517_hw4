@@ -55,9 +55,6 @@ public class MonotonicNoLmDecoder implements Decoder {
 
         for (int i = 0; i < sentence.size(); i++) {
             PriorityQueue<DecoderState> beam = beamMap.get(i);
-            if (beam.getPriority() == Double.NEGATIVE_INFINITY) {
-                System.out.print("FUCK!");
-            }
             extrapolateBeam(beam, beamMap, tmState);
             cullBeams(beamMap);
         }
